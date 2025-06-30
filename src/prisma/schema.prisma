@@ -1,0 +1,62 @@
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  links     SharedLink[]
+}
+
+model SharedLink {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  fileId       String
+  fileName     String
+  filePath     String
+  sharedWith   String // "Anyone", "Internal", or specific email
+  scope        ShareScope
+  linkUrl      String   @unique
+  ownerId      String   @db.ObjectId
+  owner        User     @relation(fields: [ownerId], references: [id])
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime?
+  lastModified DateTime @updatedAt
+}
+
+model Policy {
+  id                  String @id @default(auto()) @map("_id") @db.ObjectId
+  name                String @unique
+  maxDurationInternal Int    @default(365)
+  maxDurationExternal Int    @default(30)
+  allowPublicSharing  Boolean @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  action    String
+  userId    String   @db.ObjectId
+  details   Json
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ShareScope {
+  INTERNAL
+  EXTERNAL
+  PUBLIC
+}

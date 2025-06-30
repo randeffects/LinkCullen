@@ -1,0 +1,707 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CullenLinks API",
+    "description": "API for managing shared links with lifecycle management and role-based access control",
+    "version": "1.0.0",
+    "contact": {
+      "name": "CullenLinks Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "API v1"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["USER", "ADMIN"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SharedLink": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "sharedWith": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["INTERNAL", "EXTERNAL", "PUBLIC"]
+          },
+          "linkUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastModified": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Policy": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "maxDurationInternal": {
+            "type": "integer"
+          },
+          "maxDurationExternal": {
+            "type": "integer"
+          },
+          "allowPublicSharing": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/links": {
+      "get": {
+        "summary": "List all shared links",
+        "description": "Returns a list of shared links based on user's role and permissions",
+        "operationId": "getLinks",
+        "tags": ["Links"],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of items per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of shared links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SharedLink"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "pages": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new shared link",
+        "description": "Creates a new shared link for a file",
+        "operationId": "createLink",
+        "tags": ["Links"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["fileId", "fileName", "filePath", "sharedWith", "scope"],
+                "properties": {
+                  "fileId": {
+                    "type": "string"
+                  },
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "filePath": {
+                    "type": "string"
+                  },
+                  "sharedWith": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": ["INTERNAL", "EXTERNAL", "PUBLIC"]
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Shared link created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedLink"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/links/{id}": {
+      "get": {
+        "summary": "Get a shared link by ID",
+        "description": "Returns a single shared link",
+        "operationId": "getLinkById",
+        "tags": ["Links"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Shared link ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A shared link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a shared link",
+        "description": "Updates an existing shared link",
+        "operationId": "updateLink",
+        "tags": ["Links"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Shared link ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sharedWith": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": ["INTERNAL", "EXTERNAL", "PUBLIC"]
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Shared link updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedLink"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a shared link",
+        "description": "Deletes a shared link",
+        "operationId": "deleteLink",
+        "tags": ["Links"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Shared link ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Shared link deleted"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/policies": {
+      "get": {
+        "summary": "List all policies",
+        "description": "Returns a list of sharing policies",
+        "operationId": "getPolicies",
+        "tags": ["Policies"],
+        "responses": {
+          "200": {
+            "description": "A list of policies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Policy"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audit-logs": {
+      "get": {
+        "summary": "List audit logs",
+        "description": "Returns a list of audit logs (admin only)",
+        "operationId": "getAuditLogs",
+        "tags": ["Audit"],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of items per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "description": "Filter by user ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "description": "Filter by action",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "description": "Filter by start date",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "description": "Filter by end date",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of audit logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditLog"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "pages": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
