@@ -105,7 +105,7 @@ export class ExpiringLinksNotifier {
         const ownerId = link.ownerId;
         if (!acc[ownerId]) {
           acc[ownerId] = {
-            owner: link.owner,
+            owner: link.ownerId,
             links: []
           };
         }
