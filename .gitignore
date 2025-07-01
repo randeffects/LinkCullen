@@ -1,2 +1,4 @@
+.DS_Store
+.gemini/.env
 /node_modules/
 .next/
