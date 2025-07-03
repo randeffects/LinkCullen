@@ -2,3 +2,4 @@
 .gemini/.env
 /node_modules/
 .next/
+coverage/
