@@ -93,6 +93,21 @@ describe('LinkService', () => {
       });
       expect(result).toEqual(expectedLink);
     });
+
+    it('should throw an error if the database call fails', async () => {
+        const params = {
+          fileName: 'test.txt',
+          filePath: '/path/to/test.txt',
+          shareType: ShareType.SPECIFIC_PEOPLE,
+          recipients: [{ recipient: 'user@example.com', permission: Permission.VIEW }],
+          ownerId: 'owner-123',
+        };
+        const error = new Error('DB error');
+        (prismaMock.trackedLink.create as jest.Mock).mockRejectedValue(error);
+
+        await expect(linkService.createLink(params)).rejects.toThrow(error);
+        expect(logger.error).toHaveBeenCalledWith('Failed to create tracked link', error, { params });
+      });
   });
   describe('getLinkById', () => {
     const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
@@ -135,6 +150,15 @@ describe('LinkService', () => {
       const result = await linkService.getLinkById('link-404', user);
       expect(result).toBeNull();
     });
+
+    it('should throw an error if the database call fails', async () => {
+      const error = new Error('DB error');
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockRejectedValue(error);
+      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+
+      await expect(linkService.getLinkById('link-123', user)).rejects.toThrow(error);
+      expect(logger.error).toHaveBeenCalledWith('Failed to get tracked link', error, { id: 'link-123', userId: user.id });
+    });
   });
   describe('getLinks', () => {
     const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
@@ -176,6 +200,15 @@ describe('LinkService', () => {
       expect(result.total).toBe(links.length);
       expect(prismaMock.trackedLink.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 1, take: 1 }));
     });
+
+    it('should throw an error if the database call fails', async () => {
+      const error = new Error('DB error');
+      (prismaMock.trackedLink.findMany as jest.Mock).mockRejectedValue(error);
+      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+
+      await expect(linkService.getLinks(user)).rejects.toThrow(error);
+      expect(logger.error).toHaveBeenCalledWith('Failed to get tracked links', error, { userId: user.id, role: user.role, page: 1, limit: 10 });
+    });
   });
   describe('updateLink', () => {
     const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
@@ -211,6 +244,29 @@ describe('LinkService', () => {
       const result = await linkService.updateLink('link-404', updateParams, user);
       expect(result).toBeNull();
     });
+
+    it('should throw an error if the database call fails', async () => {
+      const error = new Error('DB error');
+      (prismaMock.trackedLink.update as jest.Mock).mockRejectedValue(error);
+      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+      const link: TrackedLink = {
+        id: 'link-123',
+        ownerId: 'user-123',
+        fileId: 'file-123',
+        fileName: 'test.txt',
+        filePath: '/path/to/test.txt',
+        shareType: ShareType.SPECIFIC_PEOPLE,
+        linkUrl: 'https://cullenlinks.com/share/random-id',
+        expiresAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const updateParams = { shareType: ShareType.ANYONE };
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
+
+      await expect(linkService.updateLink('link-123', updateParams, user)).rejects.toThrow(error);
+      expect(logger.error).toHaveBeenCalledWith('Failed to update tracked link', error, { id: 'link-123', params: updateParams, userId: user.id });
+    });
   });
   describe('deleteLink', () => {
     const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
@@ -245,6 +301,28 @@ describe('LinkService', () => {
       const result = await linkService.deleteLink('link-404', user);
       expect(result).toBe(false);
     });
+
+    it('should throw an error if the database call fails', async () => {
+      const error = new Error('DB error');
+      (prismaMock.trackedLink.delete as jest.Mock).mockRejectedValue(error);
+      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+      const link: TrackedLink = {
+        id: 'link-123',
+        ownerId: 'user-123',
+        fileId: 'file-123',
+        fileName: 'test.txt',
+        filePath: '/path/to/test.txt',
+        shareType: ShareType.SPECIFIC_PEOPLE,
+        linkUrl: 'https://cullenlinks.com/share/random-id',
+        expiresAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
+
+      await expect(linkService.deleteLink('link-123', user)).rejects.toThrow(error);
+      expect(logger.error).toHaveBeenCalledWith('Failed to delete tracked link', error, { id: 'link-123', userId: user.id });
+    });
   });
   describe('findExpiringLinks', () => {
     it('should return links that are about to expire', async () => {
@@ -265,6 +343,14 @@ describe('LinkService', () => {
           },
         },
       }));
+    });
+
+    it('should throw an error if the database call fails', async () => {
+      const error = new Error('DB error');
+      (prismaMock.trackedLink.findMany as jest.Mock).mockRejectedValue(error);
+
+      await expect(linkService.findExpiringLinks(7)).rejects.toThrow(error);
+      expect(logger.error).toHaveBeenCalledWith('Failed to find expiring links', error, { daysThreshold: 7 });
     });
   });
 });
