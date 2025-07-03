@@ -17,7 +17,7 @@
     "next": "^15.3.4",
     "next-auth": "^4.24.11",
     "node-cron": "^4.1.1",
-    "prisma": "^6.10.1",
+    "prisma": "^6.11.1",
     "react": "^19.1.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.1.0",
