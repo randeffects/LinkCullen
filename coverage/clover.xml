@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1751500393621" clover="3.2.0">
+  <project timestamp="1751500393621" name="All files">
+    <metrics statements="61" coveredstatements="49" conditionals="19" coveredconditionals="18" methods="8" coveredmethods="8" elements="88" coveredelements="75" complexity="0" loc="61" ncloc="61" packages="1" files="1" classes="1"/>
+    <file name="linkService.ts" path="/Users/gwillis/SCM/LinkCullen/src/services/linkService.ts">
+      <metrics statements="61" coveredstatements="49" conditionals="19" coveredconditionals="18" methods="8" coveredmethods="8"/>
+      <line num="17" count="1" type="stmt"/>
+      <line num="18" count="1" type="stmt"/>
+      <line num="20" count="1" type="stmt"/>
+      <line num="47" count="13" type="stmt"/>
+      <line num="51" count="14" type="stmt"/>
+      <line num="57" count="1" type="stmt"/>
+      <line num="59" count="1" type="stmt"/>
+      <line num="62" count="1" type="stmt"/>
+      <line num="80" count="1" type="stmt"/>
+      <line num="87" count="1" type="stmt"/>
+      <line num="89" count="0" type="stmt"/>
+      <line num="90" count="0" type="stmt"/>
+      <line num="98" count="8" type="stmt"/>
+      <line num="99" count="8" type="stmt"/>
+      <line num="103" count="8" type="cond" truecount="2" falsecount="0"/>
+      <line num="104" count="3" type="stmt"/>
+      <line num="108" count="5" type="cond" truecount="4" falsecount="0"/>
+      <line num="109" count="1" type="stmt"/>
+      <line num="114" count="1" type="stmt"/>
+      <line num="117" count="4" type="stmt"/>
+      <line num="119" count="0" type="stmt"/>
+      <line num="120" count="0" type="stmt"/>
+      <line num="128" count="3" type="cond" truecount="2" falsecount="0"/>
+      <line num="129" count="3" type="stmt"/>
+      <line num="131" count="3" type="stmt"/>
+      <line num="133" count="3" type="cond" truecount="2" falsecount="0"/>
+      <line num="138" count="3" type="stmt"/>
+      <line num="148" count="3" type="stmt"/>
+      <line num="150" count="0" type="stmt"/>
+      <line num="156" count="0" type="stmt"/>
+      <line num="164" count="2" type="stmt"/>
+      <line num="166" count="2" type="stmt"/>
+      <line num="168" count="2" type="cond" truecount="2" falsecount="0"/>
+      <line num="169" count="1" type="stmt"/>
+      <line num="173" count="1" type="stmt"/>
+      <line num="183" count="1" type="stmt"/>
+      <line num="188" count="1" type="stmt"/>
+      <line num="190" count="0" type="stmt"/>
+      <line num="191" count="0" type="stmt"/>
+      <line num="199" count="2" type="stmt"/>
+      <line num="201" count="2" type="stmt"/>
+      <line num="203" count="2" type="cond" truecount="2" falsecount="0"/>
+      <line num="204" count="1" type="stmt"/>
+      <line num="208" count="1" type="stmt"/>
+      <line num="213" count="1" type="stmt"/>
+      <line num="218" count="1" type="stmt"/>
+      <line num="220" count="0" type="stmt"/>
+      <line num="221" count="0" type="stmt"/>
+      <line num="229" count="1" type="stmt"/>
+      <line num="230" count="1" type="stmt"/>
+      <line num="231" count="1" type="stmt"/>
+      <line num="232" count="1" type="stmt"/>
+      <line num="235" count="1" type="stmt"/>
+      <line num="248" count="1" type="stmt"/>
+      <line num="250" count="0" type="stmt"/>
+      <line num="251" count="0" type="stmt"/>
+      <line num="260" count="1" type="cond" truecount="2" falsecount="0"/>
+      <line num="261" count="1" type="stmt"/>
+      <line num="262" count="1" type="stmt"/>
+      <line num="267" count="1" type="stmt"/>
+      <line num="270" count="1" type="stmt"/>
+    </file>
+  </project>
+</coverage>
