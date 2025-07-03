@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { SharedLink, User, Role, ShareScope } from '@prisma/client';
+import { TrackedLink, User, Role, ShareType, Permission } from '@prisma/client';
 import { LinkService } from '../linkService';
 import { logger } from '@/lib/logger';
 import { prismaMock } from '../__mocks__/prisma';
@@ -34,7 +34,7 @@ describe('LinkService', () => {
 
   beforeEach(() => {
     linkService = new LinkService();
-    (prismaMock as any).sharedLink = {
+    (prismaMock as any).trackedLink = {
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -45,35 +45,34 @@ describe('LinkService', () => {
   });
 
   describe('createLink', () => {
-    it('should create a new shared link and log the action', async () => {
+    it('should create a new tracked link and log the action', async () => {
       const params = {
-        fileId: 'file-123',
         fileName: 'test.txt',
         filePath: '/path/to/test.txt',
-        sharedWith: 'user@example.com',
-        scope: ShareScope.USER,
+        shareType: ShareType.SPECIFIC_PEOPLE,
+        recipients: [{ recipient: 'user@example.com', permission: Permission.VIEW }],
         ownerId: 'owner-123',
       };
 
       const expectedLink = {
         id: 'link-123',
+        fileId: 'f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da5252043a8a2e',
         linkUrl: 'https://cullenlinks.com/share/random-id',
         createdAt: new Date(),
         updatedAt: new Date(),
         ...params,
       };
 
-      prismaMock.sharedLink.create.mockResolvedValue(expectedLink as any);
+      (prismaMock.trackedLink.create as jest.Mock).mockResolvedValue(expectedLink);
 
       const result = await linkService.createLink(params);
 
-      expect(prismaMock.sharedLink.create).toHaveBeenCalledWith({
+      expect(prismaMock.trackedLink.create).toHaveBeenCalledWith({
         data: {
-          fileId: params.fileId,
+          fileId: expect.any(String),
           fileName: params.fileName,
           filePath: params.filePath,
-          sharedWith: params.sharedWith,
-          scope: params.scope,
+          shareType: params.shareType,
           linkUrl: expect.any(String),
           expiresAt: params.expiresAt,
           owner: {
@@ -81,13 +80,16 @@ describe('LinkService', () => {
               id: params.ownerId,
             },
           },
+          recipients: {
+            create: params.recipients,
+          },
         },
       });
       expect(logger.audit).toHaveBeenCalledWith('link.create', params.ownerId, {
         linkId: expectedLink.id,
         fileName: expectedLink.fileName,
-        sharedWith: expectedLink.sharedWith,
-        scope: expectedLink.scope,
+        shareType: expectedLink.shareType,
+        recipients: expectedLink.recipients,
       });
       expect(result).toEqual(expectedLink);
     });
@@ -95,14 +97,13 @@ describe('LinkService', () => {
   describe('getLinkById', () => {
     const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
     const admin: User = { id: 'admin-123', email: 'test@test.com', role: Role.ADMIN, name: 'Test Admin' };
-    const link: SharedLink = {
+    const link: TrackedLink = {
       id: 'link-123',
       ownerId: 'user-123',
       fileId: 'file-123',
       fileName: 'test.txt',
       filePath: '/path/to/test.txt',
-      sharedWith: 'user@example.com',
-      scope: ShareScope.USER,
+      shareType: ShareType.SPECIFIC_PEOPLE,
       linkUrl: 'https://cullenlinks.com/share/random-id',
       expiresAt: null,
       createdAt: new Date(),
@@ -110,27 +111,27 @@ describe('LinkService', () => {
     };
 
     it('should return a link if the user is the owner', async () => {
-      prismaMock.sharedLink.findUnique.mockResolvedValue(link);
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
       const result = await linkService.getLinkById('link-123', user);
       expect(result).toEqual(link);
     });
 
     it('should return a link if the user is an admin', async () => {
-      prismaMock.sharedLink.findUnique.mockResolvedValue(link);
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
       const result = await linkService.getLinkById('link-123', admin);
       expect(result).toEqual(link);
     });
 
     it('should return null if the user is not authorized', async () => {
       const unauthorizedUser: User = { id: 'unauthorized-user', email: 'test@test.com', role: Role.USER, name: 'Test User' };
-      prismaMock.sharedLink.findUnique.mockResolvedValue(link);
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
       const result = await linkService.getLinkById('link-123', unauthorizedUser);
       expect(result).toBeNull();
       expect(logger.warn).toHaveBeenCalled();
     });
 
     it('should return null if the link is not found', async () => {
-      prismaMock.sharedLink.findUnique.mockResolvedValue(null);
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(null);
       const result = await linkService.getLinkById('link-404', user);
       expect(result).toBeNull();
     });
@@ -138,64 +139,63 @@ describe('LinkService', () => {
   describe('getLinks', () => {
     const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
     const admin: User = { id: 'admin-123', email: 'test@test.com', role: Role.ADMIN, name: 'Test Admin' };
-    const links: SharedLink[] = [
-      { id: 'link-1', ownerId: 'user-123', fileId: 'file-1', fileName: 'test1.txt', filePath: '/path/to/test1.txt', sharedWith: 'user@example.com', scope: ShareScope.USER, linkUrl: 'https://cullenlinks.com/share/random-id1', expiresAt: null, createdAt: new Date(), updatedAt: new Date() },
-      { id: 'link-2', ownerId: 'user-123', fileId: 'file-2', fileName: 'test2.txt', filePath: '/path/to/test2.txt', sharedWith: 'user@example.com', scope: ShareScope.USER, linkUrl: 'https://cullenlinks.com/share/random-id2', expiresAt: null, createdAt: new Date(), updatedAt: new Date() },
+    const links: TrackedLink[] = [
+      { id: 'link-1', ownerId: 'user-123', fileId: 'file-1', fileName: 'test1.txt', filePath: '/path/to/test1.txt', shareType: ShareType.SPECIFIC_PEOPLE, linkUrl: 'https://cullenlinks.com/share/random-id1', expiresAt: null, createdAt: new Date(), updatedAt: new Date() },
+      { id: 'link-2', ownerId: 'user-123', fileId: 'file-2', fileName: 'test2.txt', filePath: '/path/to/test2.txt', shareType: ShareType.ANYONE, linkUrl: 'https://cullenlinks.com/share/random-id2', expiresAt: null, createdAt: new Date(), updatedAt: new Date() },
     ];
 
     it('should return all links for an admin', async () => {
-      prismaMock.sharedLink.findMany.mockResolvedValue(links);
-      prismaMock.sharedLink.count.mockResolvedValue(links.length);
+      (prismaMock.trackedLink.findMany as jest.Mock).mockResolvedValue(links);
+      (prismaMock.trackedLink.count as jest.Mock).mockResolvedValue(links.length);
 
       const result = await linkService.getLinks(admin);
 
       expect(result.data).toEqual(links);
       expect(result.total).toBe(links.length);
-      expect(prismaMock.sharedLink.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+      expect(prismaMock.trackedLink.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
     });
 
     it('should return only own links for a regular user', async () => {
-      prismaMock.sharedLink.findMany.mockResolvedValue(links);
-      prismaMock.sharedLink.count.mockResolvedValue(links.length);
+      (prismaMock.trackedLink.findMany as jest.Mock).mockResolvedValue(links);
+      (prismaMock.trackedLink.count as jest.Mock).mockResolvedValue(links.length);
 
       const result = await linkService.getLinks(user);
 
       expect(result.data).toEqual(links);
       expect(result.total).toBe(links.length);
-      expect(prismaMock.sharedLink.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: user.id } }));
+      expect(prismaMock.trackedLink.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: user.id } }));
     });
 
     it('should handle pagination correctly', async () => {
-      prismaMock.sharedLink.findMany.mockResolvedValue([links[1]]);
-      prismaMock.sharedLink.count.mockResolvedValue(links.length);
+      (prismaMock.trackedLink.findMany as jest.Mock).mockResolvedValue([links[1]]);
+      (prismaMock.trackedLink.count as jest.Mock).mockResolvedValue(links.length);
 
       const result = await linkService.getLinks(user, { page: 2, limit: 1 });
 
       expect(result.data).toEqual([links[1]]);
       expect(result.total).toBe(links.length);
-      expect(prismaMock.sharedLink.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 1, take: 1 }));
+      expect(prismaMock.trackedLink.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 1, take: 1 }));
     });
   });
   describe('updateLink', () => {
     const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
-    const link: SharedLink = {
+    const link: TrackedLink = {
       id: 'link-123',
       ownerId: 'user-123',
       fileId: 'file-123',
       fileName: 'test.txt',
       filePath: '/path/to/test.txt',
-      sharedWith: 'user@example.com',
-      scope: ShareScope.USER,
+      shareType: ShareType.SPECIFIC_PEOPLE,
       linkUrl: 'https://cullenlinks.com/share/random-id',
       expiresAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const updateParams = { scope: ShareScope.ORGANIZATION };
+    const updateParams = { shareType: ShareType.ANYONE };
 
     it('should update a link successfully', async () => {
-      prismaMock.sharedLink.findUnique.mockResolvedValue(link);
-      prismaMock.sharedLink.update.mockResolvedValue({ ...link, ...updateParams });
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
+      (prismaMock.trackedLink.update as jest.Mock).mockResolvedValue({ ...link, ...updateParams });
 
       const result = await linkService.updateLink('link-123', updateParams, user);
 
@@ -207,21 +207,20 @@ describe('LinkService', () => {
     });
 
     it('should return null if trying to update a non-existent link', async () => {
-      prismaMock.sharedLink.findUnique.mockResolvedValue(null);
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(null);
       const result = await linkService.updateLink('link-404', updateParams, user);
       expect(result).toBeNull();
     });
   });
   describe('deleteLink', () => {
     const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
-    const link: SharedLink = {
+    const link: TrackedLink = {
       id: 'link-123',
       ownerId: 'user-123',
       fileId: 'file-123',
       fileName: 'test.txt',
       filePath: '/path/to/test.txt',
-      sharedWith: 'user@example.com',
-      scope: ShareScope.USER,
+      shareType: ShareType.SPECIFIC_PEOPLE,
       linkUrl: 'https://cullenlinks.com/share/random-id',
       expiresAt: null,
       createdAt: new Date(),
@@ -229,8 +228,8 @@ describe('LinkService', () => {
     };
 
     it('should delete a link successfully', async () => {
-      prismaMock.sharedLink.findUnique.mockResolvedValue(link);
-      prismaMock.sharedLink.delete.mockResolvedValue(link);
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
+      (prismaMock.trackedLink.delete as jest.Mock).mockResolvedValue(link);
 
       const result = await linkService.deleteLink('link-123', user);
 
@@ -242,22 +241,22 @@ describe('LinkService', () => {
     });
 
     it('should return false if trying to delete a non-existent link', async () => {
-      prismaMock.sharedLink.findUnique.mockResolvedValue(null);
+      (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(null);
       const result = await linkService.deleteLink('link-404', user);
       expect(result).toBe(false);
     });
   });
   describe('findExpiringLinks', () => {
     it('should return links that are about to expire', async () => {
-      const expiringLinks: SharedLink[] = [
-        { id: 'link-1', ownerId: 'user-123', fileId: 'file-1', fileName: 'test1.txt', filePath: '/path/to/test1.txt', sharedWith: 'user@example.com', scope: ShareScope.USER, linkUrl: 'https://cullenlinks.com/share/random-id1', expiresAt: new Date(), createdAt: new Date(), updatedAt: new Date() },
+      const expiringLinks: TrackedLink[] = [
+        { id: 'link-1', ownerId: 'user-123', fileId: 'file-1', fileName: 'test1.txt', filePath: '/path/to/test1.txt', shareType: ShareType.SPECIFIC_PEOPLE, linkUrl: 'https://cullenlinks.com/share/random-id1', expiresAt: new Date(), createdAt: new Date(), updatedAt: new Date() },
       ];
-      prismaMock.sharedLink.findMany.mockResolvedValue(expiringLinks);
+      (prismaMock.trackedLink.findMany as jest.Mock).mockResolvedValue(expiringLinks);
 
       const result = await linkService.findExpiringLinks(7);
 
       expect(result).toEqual(expiringLinks);
-      expect(prismaMock.sharedLink.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      expect(prismaMock.trackedLink.findMany).toHaveBeenCalledWith(expect.objectContaining({
         where: {
           expiresAt: {
             not: null,

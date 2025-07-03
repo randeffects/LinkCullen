@@ -9,8 +9,13 @@ export const Role = {
   ADMIN: 'ADMIN',
 };
 
-export const ShareScope = {
-  USER: 'USER',
-  ORGANIZATION: 'ORGANIZATION',
-  PUBLIC: 'PUBLIC',
+export const ShareType = {
+  SPECIFIC_PEOPLE: 'SPECIFIC_PEOPLE',
+  ANYONE: 'ANYONE',
+};
+
+export const Permission = {
+  VIEW: 'VIEW',
+  EDIT: 'EDIT',
+  BLOCK_DOWNLOAD: 'BLOCK_DOWNLOAD',
 };
