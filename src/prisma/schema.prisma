@@ -14,22 +14,30 @@ model User {
   role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  links     SharedLink[]
+  links     TrackedLink[]
 }
 
-model SharedLink {
+model TrackedLink {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   fileId       String
   fileName     String
   filePath     String
-  sharedWith   String // "Anyone", "Internal", or specific email
-  scope        ShareScope
+  shareType    ShareType
+  recipients   ShareRecipient[]
   linkUrl      String   @unique
   ownerId      String   @db.ObjectId
   owner        User     @relation(fields: [ownerId], references: [id])
   createdAt    DateTime @default(now())
   expiresAt    DateTime?
   lastModified DateTime @updatedAt
+}
+
+model ShareRecipient {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  recipient String
+  permission Permission
+  linkId    String   @db.ObjectId
+  link      TrackedLink @relation(fields: [linkId], references: [id])
 }
 
 model Policy {
@@ -55,8 +63,13 @@ enum Role {
   ADMIN
 }
 
-enum ShareScope {
-  INTERNAL
-  EXTERNAL
-  PUBLIC
+enum Permission {
+  VIEW
+  EDIT
+  BLOCK_DOWNLOAD
+}
+
+enum ShareType {
+  SPECIFIC_PEOPLE
+  ANYONE
 }

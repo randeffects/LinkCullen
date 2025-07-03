@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "CullenLinks API",
-    "description": "API for managing shared links with lifecycle management and role-based access control",
+    "description": "API for tracking and managing existing SharePoint and OneDrive shared links, including their lifecycle and access control",
     "version": "1.0.0",
     "contact": {
       "name": "CullenLinks Support"
@@ -47,7 +47,7 @@
           }
         }
       },
-      "SharedLink": {
+      "TrackedLink": {
         "type": "object",
         "properties": {
           "id": {
@@ -62,12 +62,15 @@
           "filePath": {
             "type": "string"
           },
-          "sharedWith": {
-            "type": "string"
-          },
-          "scope": {
+          "shareType": {
             "type": "string",
-            "enum": ["INTERNAL", "EXTERNAL", "PUBLIC"]
+            "enum": ["SPECIFIC_PEOPLE", "ANYONE"]
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShareRecipient"
+            }
           },
           "linkUrl": {
             "type": "string",
@@ -88,6 +91,21 @@
           "lastModified": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ShareRecipient": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "string",
+            "enum": ["VIEW", "EDIT", "BLOCK_DOWNLOAD"]
           }
         }
       },
@@ -162,10 +180,10 @@
   "paths": {
     "/links": {
       "get": {
-        "summary": "List all shared links",
-        "description": "Returns a list of shared links based on user's role and permissions",
+        "summary": "List all tracked links",
+        "description": "Returns a list of tracked links based on user's role and permissions",
         "operationId": "getLinks",
-        "tags": ["Links"],
+        "tags": ["Tracked Links"],
         "parameters": [
           {
             "name": "page",
@@ -190,7 +208,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A list of shared links",
+            "description": "A list of tracked links",
             "content": {
               "application/json": {
                 "schema": {
@@ -199,7 +217,7 @@
                     "data": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/SharedLink"
+                        "$ref": "#/components/schemas/TrackedLink"
                       }
                     },
                     "pagination": {
@@ -247,17 +265,17 @@
         }
       },
       "post": {
-        "summary": "Create a new shared link",
-        "description": "Creates a new shared link for a file",
+        "summary": "Register an existing external link",
+        "description": "Adds an existing SharePoint or OneDrive link to the system for tracking",
         "operationId": "createLink",
-        "tags": ["Links"],
+        "tags": ["Tracked Links"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["fileId", "fileName", "filePath", "sharedWith", "scope"],
+                "required": ["fileId", "fileName", "filePath", "shareType"],
                 "properties": {
                   "fileId": {
                     "type": "string"
@@ -268,12 +286,24 @@
                   "filePath": {
                     "type": "string"
                   },
-                  "sharedWith": {
-                    "type": "string"
-                  },
-                  "scope": {
+                  "shareType": {
                     "type": "string",
-                    "enum": ["INTERNAL", "EXTERNAL", "PUBLIC"]
+                    "enum": ["SPECIFIC_PEOPLE", "ANYONE"]
+                  },
+                  "recipients": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "recipient": {
+                          "type": "string"
+                        },
+                        "permission": {
+                          "type": "string",
+                          "enum": ["VIEW", "EDIT", "BLOCK_DOWNLOAD"]
+                        }
+                      }
+                    }
                   },
                   "expiresAt": {
                     "type": "string",
@@ -287,11 +317,11 @@
         },
         "responses": {
           "201": {
-            "description": "Shared link created",
+            "description": "Tracked link created",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SharedLink"
+                  "$ref": "#/components/schemas/TrackedLink"
                 }
               }
             }
@@ -331,15 +361,15 @@
     },
     "/links/{id}": {
       "get": {
-        "summary": "Get a shared link by ID",
-        "description": "Returns a single shared link",
+        "summary": "Get a tracked link by ID",
+        "description": "Returns a single tracked link",
         "operationId": "getLinkById",
-        "tags": ["Links"],
+        "tags": ["Tracked Links"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Shared link ID",
+            "description": "Tracked link ID",
             "required": true,
             "schema": {
               "type": "string"
@@ -348,11 +378,11 @@
         ],
         "responses": {
           "200": {
-            "description": "A shared link",
+            "description": "A tracked link",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SharedLink"
+                  "$ref": "#/components/schemas/TrackedLink"
                 }
               }
             }
@@ -390,15 +420,15 @@
         }
       },
       "put": {
-        "summary": "Update a shared link",
-        "description": "Updates an existing shared link",
+        "summary": "Update a tracked link",
+        "description": "Updates an existing tracked link",
         "operationId": "updateLink",
-        "tags": ["Links"],
+        "tags": ["Tracked Links"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Shared link ID",
+            "description": "Tracked link ID",
             "required": true,
             "schema": {
               "type": "string"
@@ -412,12 +442,24 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "sharedWith": {
-                    "type": "string"
-                  },
-                  "scope": {
+                  "shareType": {
                     "type": "string",
-                    "enum": ["INTERNAL", "EXTERNAL", "PUBLIC"]
+                    "enum": ["SPECIFIC_PEOPLE", "ANYONE"]
+                  },
+                  "recipients": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "recipient": {
+                          "type": "string"
+                        },
+                        "permission": {
+                          "type": "string",
+                          "enum": ["VIEW", "EDIT", "BLOCK_DOWNLOAD"]
+                        }
+                      }
+                    }
                   },
                   "expiresAt": {
                     "type": "string",
@@ -431,11 +473,11 @@
         },
         "responses": {
           "200": {
-            "description": "Shared link updated",
+            "description": "Tracked link updated",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SharedLink"
+                  "$ref": "#/components/schemas/TrackedLink"
                 }
               }
             }
@@ -483,15 +525,15 @@
         }
       },
       "delete": {
-        "summary": "Delete a shared link",
-        "description": "Deletes a shared link",
+        "summary": "Delete a tracked link",
+        "description": "Deletes a tracked link",
         "operationId": "deleteLink",
-        "tags": ["Links"],
+        "tags": ["Tracked Links"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Shared link ID",
+            "description": "Tracked link ID",
             "required": true,
             "schema": {
               "type": "string"
@@ -500,7 +542,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Shared link deleted"
+            "description": "Tracked link deleted"
           },
           "401": {
             "description": "Unauthorized",

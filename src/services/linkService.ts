@@ -14,24 +14,30 @@
  * limitations under the License.
  */
 
-import { PrismaClient, SharedLink, User, Role, ShareScope } from '@prisma/client';
+import { createHash } from 'crypto';
+import { PrismaClient, TrackedLink, User, Role, ShareType, Permission } from '@prisma/client';
 import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
 interface CreateLinkParams {
-  fileId: string;
   fileName: string;
   filePath: string;
-  sharedWith: string;
-  scope: ShareScope;
+  shareType: ShareType;
+  recipients: {
+    recipient: string;
+    permission: Permission;
+  }[];
   expiresAt?: Date;
   ownerId: string;
 }
 
 interface UpdateLinkParams {
-  sharedWith?: string;
-  scope?: ShareScope;
+  shareType?: ShareType;
+  recipients?: {
+    recipient: string;
+    permission: Permission;
+  }[];
   expiresAt?: Date | null;
 }
 
@@ -45,28 +51,40 @@ interface LinkQueryOptions {
  * Service for managing shared links with role-based access control
  */
 export class LinkService {
+  private prisma: PrismaClient;
+
+  constructor(prisma: PrismaClient = new PrismaClient()) {
+    this.prisma = prisma;
+  }
+
+  private _calculateSHA256(filePath: string): string {
+    return createHash('sha256').update(filePath).digest('hex');
+  }
   /**
    * Create a new shared link
    */
-  async createLink(params: CreateLinkParams): Promise<SharedLink> {
+  async createLink(params: CreateLinkParams): Promise<TrackedLink> {
     try {
+      const fileId = this._calculateSHA256(params.filePath);
       // Generate a unique link URL
-      const linkUrl = this.generateLinkUrl(params.fileId);
+      const linkUrl = this.generateLinkUrl(fileId);
       
       // Create the link in the database
-      const link = await prisma.sharedLink.create({
+      const link = await this.prisma.trackedLink.create({
         data: {
-          fileId: params.fileId,
+          fileId: fileId,
           fileName: params.fileName,
           filePath: params.filePath,
-          sharedWith: params.sharedWith,
-          scope: params.scope,
+          shareType: params.shareType,
           linkUrl,
           expiresAt: params.expiresAt,
           owner: {
             connect: {
               id: params.ownerId
             }
+          },
+          recipients: {
+            create: params.recipients
           }
         }
       });
@@ -75,13 +93,13 @@ export class LinkService {
       await logger.audit('link.create', params.ownerId, {
         linkId: link.id,
         fileName: link.fileName,
-        sharedWith: link.sharedWith,
-        scope: link.scope
+        shareType: link.shareType,
+        recipients: params.recipients
       });
       
       return link;
     } catch (error) {
-      logger.error('Failed to create shared link', error as Error, { params });
+      logger.error('Failed to create tracked link', error as Error, { params });
       throw error;
     }
   }
@@ -89,10 +107,11 @@ export class LinkService {
   /**
    * Get a shared link by ID with role-based access control
    */
-  async getLinkById(id: string, user: User): Promise<SharedLink | null> {
+  async getLinkById(id: string, user: User): Promise<TrackedLink | null> {
     try {
-      const link = await prisma.sharedLink.findUnique({
-        where: { id }
+      const link = await this.prisma.trackedLink.findUnique({
+        where: { id },
+        include: { recipients: true }
       });
       
       if (!link) {
@@ -101,7 +120,7 @@ export class LinkService {
       
       // RBAC: Only allow access if the user is the owner or an admin
       if (user.role !== Role.ADMIN && link.ownerId !== user.id) {
-        logger.warn('Unauthorized access attempt to shared link', {
+        logger.warn('Unauthorized access attempt to tracked link', {
           userId: user.id,
           linkId: id,
           ownerId: link.ownerId
@@ -111,7 +130,7 @@ export class LinkService {
       
       return link;
     } catch (error) {
-      logger.error('Failed to get shared link', error as Error, { id, userId: user.id });
+      logger.error('Failed to get tracked link', error as Error, { id, userId: user.id });
       throw error;
     }
   }
@@ -119,7 +138,7 @@ export class LinkService {
   /**
    * Get all shared links with pagination and role-based access control
    */
-  async getLinks(user: User, options: LinkQueryOptions = {}): Promise<{ data: SharedLink[], total: number }> {
+  async getLinks(user: User, options: LinkQueryOptions = {}): Promise<{ data: TrackedLink[], total: number }> {
     const { page = 1, limit = 10 } = options;
     const skip = (page - 1) * limit;
     
@@ -131,18 +150,19 @@ export class LinkService {
       
       // Get links with pagination
       const [links, total] = await Promise.all([
-        prisma.sharedLink.findMany({
+        this.prisma.trackedLink.findMany({
           where,
           skip,
           take: limit,
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          include: { recipients: true }
         }),
-        prisma.sharedLink.count({ where })
+        this.prisma.trackedLink.count({ where })
       ]);
       
       return { data: links, total };
     } catch (error) {
-      logger.error('Failed to get shared links', error as Error, { 
+      logger.error('Failed to get tracked links', error as Error, { 
         userId: user.id, 
         role: user.role,
         page,
@@ -155,7 +175,7 @@ export class LinkService {
   /**
    * Update a shared link with role-based access control
    */
-  async updateLink(id: string, params: UpdateLinkParams, user: User): Promise<SharedLink | null> {
+  async updateLink(id: string, params: UpdateLinkParams, user: User): Promise<TrackedLink | null> {
     try {
       // First check if the link exists and if the user has permission
       const existingLink = await this.getLinkById(id, user);
@@ -165,12 +185,15 @@ export class LinkService {
       }
       
       // Update the link
-      const updatedLink = await prisma.sharedLink.update({
+      const updatedLink = await this.prisma.trackedLink.update({
         where: { id },
         data: {
-          sharedWith: params.sharedWith,
-          scope: params.scope,
-          expiresAt: params.expiresAt
+          shareType: params.shareType,
+          expiresAt: params.expiresAt,
+          recipients: {
+            deleteMany: {},
+            create: params.recipients
+          }
         }
       });
       
@@ -182,7 +205,7 @@ export class LinkService {
       
       return updatedLink;
     } catch (error) {
-      logger.error('Failed to update shared link', error as Error, { id, params, userId: user.id });
+      logger.error('Failed to update tracked link', error as Error, { id, params, userId: user.id });
       throw error;
     }
   }
@@ -200,7 +223,7 @@ export class LinkService {
       }
       
       // Delete the link
-      await prisma.sharedLink.delete({
+      await this.prisma.trackedLink.delete({
         where: { id }
       });
       
@@ -212,7 +235,7 @@ export class LinkService {
       
       return true;
     } catch (error) {
-      logger.error('Failed to delete shared link', error as Error, { id, userId: user.id });
+      logger.error('Failed to delete tracked link', error as Error, { id, userId: user.id });
       throw error;
     }
   }
@@ -220,14 +243,14 @@ export class LinkService {
   /**
    * Find links that are about to expire for notification purposes
    */
-  async findExpiringLinks(daysThreshold: number = 7): Promise<SharedLink[]> {
+  async findExpiringLinks(daysThreshold: number = 7): Promise<TrackedLink[]> {
     try {
       const now = new Date();
       const thresholdDate = new Date();
       thresholdDate.setDate(now.getDate() + daysThreshold);
       
       // Find links that expire within the threshold period
-      const expiringLinks = await prisma.sharedLink.findMany({
+      const expiringLinks = await this.prisma.trackedLink.findMany({
         where: {
           expiresAt: {
             not: null,
@@ -236,7 +259,8 @@ export class LinkService {
           }
         },
         include: {
-          owner: true
+          owner: true,
+          recipients: true
         }
       });
       
