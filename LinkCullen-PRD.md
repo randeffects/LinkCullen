@@ -44,6 +44,11 @@ The primary users of this application are:
 *   All major actions (link creation, updates, deletion, access attempts) are logged for auditing purposes.
 *   This provides a clear trail of who shared what, with whom, and when.
 
+### 3.6. State Synchronization
+*   In addition to real-time event tracking, the application will perform a full synchronization of all shared files from SharePoint and OneDrive.
+*   This process gathers all shared files and their current attributes, ensuring the application's database is consistent with the source.
+*   The synchronization can be manually triggered by an administrator from the application's UI.
+
 ## 4. Functional Requirements
 
 ### 4.1 Link Processing
@@ -95,3 +100,4 @@ The application exposes a RESTful API for managing links:
 *   `GET /api/v1/links/{id}`: Get a specific tracked link by its ID.
 *   `PUT /api/v1/links/{id}`: Update a link's settings.
 *   `DELETE /api/v1/links/{id}`: Delete a tracked link.
+*   `POST /api/v1/sync`: Trigger a manual synchronization of all shared links (Admin role only).
