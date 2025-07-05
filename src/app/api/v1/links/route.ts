@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { linkService } from '@/services/linkService';
 import { logger } from '@/lib/logger';
-import { PrismaClient, ShareScope } from '@prisma/client';
+import { PrismaClient, ShareType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Validate required fields
-    const requiredFields = ['fileId', 'fileName', 'filePath', 'sharedWith', 'scope'];
+    const requiredFields = ['fileName', 'filePath', 'shareType', 'recipients'];
     for (const field of requiredFields) {
       if (!body[field]) {
         return NextResponse.json(
@@ -135,10 +135,10 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Validate scope
-    if (!Object.values(ShareScope).includes(body.scope)) {
+    // Validate shareType
+    if (!Object.values(ShareType).includes(body.shareType)) {
       return NextResponse.json(
-        { success: false, message: `Invalid scope: ${body.scope}. Must be one of: ${Object.values(ShareScope).join(', ')}` },
+        { success: false, message: `Invalid shareType: ${body.shareType}. Must be one of: ${Object.values(ShareType).join(', ')}` },
         { status: 400 }
       );
     }
@@ -157,11 +157,10 @@ export async function POST(request: NextRequest) {
     
     // Create the link
     const link = await linkService.createLink({
-      fileId: body.fileId,
       fileName: body.fileName,
       filePath: body.filePath,
-      sharedWith: body.sharedWith,
-      scope: body.scope,
+      shareType: body.shareType,
+      recipients: body.recipients,
       expiresAt,
       ownerId: user.id
     });
