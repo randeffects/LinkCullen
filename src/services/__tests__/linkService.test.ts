@@ -53,6 +53,7 @@ describe('LinkService', () => {
         shareType: ShareType.SPECIFIC_PEOPLE,
         recipients: [{ recipient: 'user@example.com', permission: Permission.VIEW }],
         ownerId: 'owner-123',
+        expiresAt: new Date(), // Added to fix TS2339 error
       };
 
       const expectedLink = {
@@ -111,8 +112,8 @@ describe('LinkService', () => {
       });
   });
   describe('getLinkById', () => {
-    const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
-    const admin: User = { id: 'admin-123', email: 'test@test.com', role: Role.ADMIN, name: 'Test Admin' };
+    const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, createdAt: new Date(), updatedAt: new Date() };
+    const admin: User = { id: 'admin-123', email: 'test@test.com', role: Role.ADMIN, createdAt: new Date(), updatedAt: new Date() };
     const link: TrackedLink = {
       id: 'link-123',
       ownerId: 'user-123',
@@ -123,7 +124,7 @@ describe('LinkService', () => {
       linkUrl: 'https://cullenlinks.com/share/random-id',
       expiresAt: null,
       createdAt: new Date(),
-      updatedAt: new Date(),
+      lastModified: new Date(),
     };
 
     it('should return a link if the user is the owner', async () => {
@@ -139,7 +140,7 @@ describe('LinkService', () => {
     });
 
     it('should return null if the user is not authorized', async () => {
-      const unauthorizedUser: User = { id: 'unauthorized-user', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+      const unauthorizedUser: User = { id: 'unauthorized-user', email: 'test@test.com', role: Role.USER, createdAt: new Date(), updatedAt: new Date() };
       (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
       const result = await linkService.getLinkById('link-123', unauthorizedUser);
       expect(result).toBeNull();
@@ -155,18 +156,18 @@ describe('LinkService', () => {
     it('should throw an error if the database call fails', async () => {
       const error = new Error('DB error');
       (prismaMock.trackedLink.findUnique as jest.Mock).mockRejectedValue(error);
-      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, createdAt: new Date(), updatedAt: new Date() };
 
       await expect(linkService.getLinkById('link-123', user)).rejects.toThrow(error);
       expect(logger.error).toHaveBeenCalledWith('Failed to get tracked link', error, { id: 'link-123', userId: user.id });
     });
   });
   describe('getLinks', () => {
-    const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
-    const admin: User = { id: 'admin-123', email: 'test@test.com', role: Role.ADMIN, name: 'Test Admin' };
+    const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, createdAt: new Date(), updatedAt: new Date() };
+    const admin: User = { id: 'admin-123', email: 'test@test.com', role: Role.ADMIN, createdAt: new Date(), updatedAt: new Date() };
     const links: TrackedLink[] = [
-      { id: 'link-1', ownerId: 'user-123', fileId: 'file-1', fileName: 'test1.txt', filePath: '/path/to/test1.txt', shareType: ShareType.SPECIFIC_PEOPLE, linkUrl: 'https://cullenlinks.com/share/random-id1', expiresAt: null, createdAt: new Date(), updatedAt: new Date() },
-      { id: 'link-2', ownerId: 'user-123', fileId: 'file-2', fileName: 'test2.txt', filePath: '/path/to/test2.txt', shareType: ShareType.ANYONE, linkUrl: 'https://cullenlinks.com/share/random-id2', expiresAt: null, createdAt: new Date(), updatedAt: new Date() },
+      { id: 'link-1', ownerId: 'user-123', fileId: 'file-1', fileName: 'test1.txt', filePath: '/path/to/test1.txt', shareType: ShareType.SPECIFIC_PEOPLE, linkUrl: 'https://cullenlinks.com/share/random-id1', expiresAt: null, createdAt: new Date(), lastModified: new Date() },
+      { id: 'link-2', ownerId: 'user-123', fileId: 'file-2', fileName: 'test2.txt', filePath: '/path/to/test2.txt', shareType: ShareType.ANYONE, linkUrl: 'https://cullenlinks.com/share/random-id2', expiresAt: null, createdAt: new Date(), lastModified: new Date() },
     ];
 
     it('should return all links for an admin', async () => {
@@ -205,14 +206,14 @@ describe('LinkService', () => {
     it('should throw an error if the database call fails', async () => {
       const error = new Error('DB error');
       (prismaMock.trackedLink.findMany as jest.Mock).mockRejectedValue(error);
-      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, createdAt: new Date(), updatedAt: new Date() };
 
       await expect(linkService.getLinks(user)).rejects.toThrow(error);
       expect(logger.error).toHaveBeenCalledWith('Failed to get tracked links', error, { userId: user.id, role: user.role, page: 1, limit: 10 });
     });
   });
   describe('updateLink', () => {
-    const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+    const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, createdAt: new Date(), updatedAt: new Date() };
     const link: TrackedLink = {
       id: 'link-123',
       ownerId: 'user-123',
@@ -223,7 +224,7 @@ describe('LinkService', () => {
       linkUrl: 'https://cullenlinks.com/share/random-id',
       expiresAt: null,
       createdAt: new Date(),
-      updatedAt: new Date(),
+      lastModified: new Date(),
     };
     const updateParams = { shareType: ShareType.ANYONE };
 
@@ -249,7 +250,7 @@ describe('LinkService', () => {
     it('should throw an error if the database call fails', async () => {
       const error = new Error('DB error');
       (prismaMock.trackedLink.update as jest.Mock).mockRejectedValue(error);
-      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, createdAt: new Date(), updatedAt: new Date() };
       const link: TrackedLink = {
         id: 'link-123',
         ownerId: 'user-123',
@@ -260,7 +261,7 @@ describe('LinkService', () => {
         linkUrl: 'https://cullenlinks.com/share/random-id',
         expiresAt: null,
         createdAt: new Date(),
-        updatedAt: new Date(),
+        lastModified: new Date(),
       };
       const updateParams = { shareType: ShareType.ANYONE };
       (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
@@ -270,7 +271,7 @@ describe('LinkService', () => {
     });
   });
   describe('deleteLink', () => {
-    const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+    const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, createdAt: new Date(), updatedAt: new Date() };
     const link: TrackedLink = {
       id: 'link-123',
       ownerId: 'user-123',
@@ -281,7 +282,7 @@ describe('LinkService', () => {
       linkUrl: 'https://cullenlinks.com/share/random-id',
       expiresAt: null,
       createdAt: new Date(),
-      updatedAt: new Date(),
+      lastModified: new Date(),
     };
 
     it('should delete a link successfully', async () => {
@@ -306,7 +307,7 @@ describe('LinkService', () => {
     it('should throw an error if the database call fails', async () => {
       const error = new Error('DB error');
       (prismaMock.trackedLink.delete as jest.Mock).mockRejectedValue(error);
-      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, name: 'Test User' };
+      const user: User = { id: 'user-123', email: 'test@test.com', role: Role.USER, createdAt: new Date(), updatedAt: new Date() };
       const link: TrackedLink = {
         id: 'link-123',
         ownerId: 'user-123',
@@ -317,7 +318,7 @@ describe('LinkService', () => {
         linkUrl: 'https://cullenlinks.com/share/random-id',
         expiresAt: null,
         createdAt: new Date(),
-        updatedAt: new Date(),
+        lastModified: new Date(),
       };
       (prismaMock.trackedLink.findUnique as jest.Mock).mockResolvedValue(link);
 
@@ -328,7 +329,7 @@ describe('LinkService', () => {
   describe('findExpiringLinks', () => {
     it('should return links that are about to expire', async () => {
       const expiringLinks: TrackedLink[] = [
-        { id: 'link-1', ownerId: 'user-123', fileId: 'file-1', fileName: 'test1.txt', filePath: '/path/to/test1.txt', shareType: ShareType.SPECIFIC_PEOPLE, linkUrl: 'https://cullenlinks.com/share/random-id1', expiresAt: new Date(), createdAt: new Date(), updatedAt: new Date() },
+        { id: 'link-1', ownerId: 'user-123', fileId: 'file-1', fileName: 'test1.txt', filePath: '/path/to/test1.txt', shareType: ShareType.SPECIFIC_PEOPLE, linkUrl: 'https://cullenlinks.com/share/random-id1', expiresAt: new Date(), createdAt: new Date(), lastModified: new Date() },
       ];
       (prismaMock.trackedLink.findMany as jest.Mock).mockResolvedValue(expiringLinks);
 
@@ -373,3 +374,4 @@ describe('LinkService', () => {
     });
   });
 });
+
