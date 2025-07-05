@@ -272,6 +272,29 @@ export class LinkService {
   }
   
   /**
+   * Synchronize all shared links from the source.
+   * In a real implementation, this would connect to the Microsoft Graph API
+   * to get all shared links and update the database.
+   * For now, this is a placeholder.
+   */
+  async synchronizeLinks(): Promise<void> {
+    try {
+      logger.info('Starting link synchronization');
+      // Placeholder: In a real implementation, you would:
+      // 1. Connect to the Microsoft Graph API
+      // 2. Get all shared links
+      // 3. For each link, check if it exists in the database
+      // 4. If it exists, update it
+      // 5. If it doesn't exist, create it
+      // 6. If a link in the database doesn't exist in the source, delete it
+      logger.info('Link synchronization complete');
+    } catch (error) {
+      logger.error('Failed to synchronize links', error as Error);
+      throw error;
+    }
+  }
+  
+  /**
    * Generate a unique link URL
    * In a real implementation, this would be more sophisticated
    */

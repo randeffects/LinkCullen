@@ -26,6 +26,7 @@ jest.mock('@/lib/logger', () => ({
     audit: jest.fn(),
     error: jest.fn(),
     warn: jest.fn(),
+    info: jest.fn(),
   },
 }));
 
@@ -351,6 +352,24 @@ describe('LinkService', () => {
 
       await expect(linkService.findExpiringLinks(7)).rejects.toThrow(error);
       expect(logger.error).toHaveBeenCalledWith('Failed to find expiring links', error, { daysThreshold: 7 });
+    });
+  });
+
+  describe('synchronizeLinks', () => {
+    it('should log that the synchronization has started and completed', async () => {
+      await linkService.synchronizeLinks();
+      expect(logger.info).toHaveBeenCalledWith('Starting link synchronization');
+      expect(logger.info).toHaveBeenCalledWith('Link synchronization complete');
+    });
+
+    it('should throw an error if the synchronization fails', async () => {
+        const error = new Error('Sync error');
+        (logger.info as jest.Mock).mockImplementationOnce(() => {
+            throw error;
+        });
+
+        await expect(linkService.synchronizeLinks()).rejects.toThrow(error);
+        expect(logger.error).toHaveBeenCalledWith('Failed to synchronize links', error);
     });
   });
 });

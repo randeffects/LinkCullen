@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { linkService } from '@/services/linkService';
 import { logger } from '@/lib/logger';
-import { PrismaClient, ShareScope } from '@prisma/client';
+import { PrismaClient, ShareType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -126,10 +126,10 @@ export async function PUT(
     // Parse the request body
     const body = await request.json();
     
-    // Validate scope if provided
-    if (body.scope && !Object.values(ShareScope).includes(body.scope)) {
+    // Validate shareType if provided
+    if (body.shareType && !Object.values(ShareType).includes(body.shareType)) {
       return NextResponse.json(
-        { success: false, message: `Invalid scope: ${body.scope}. Must be one of: ${Object.values(ShareScope).join(', ')}` },
+        { success: false, message: `Invalid shareType: ${body.shareType}. Must be one of: ${Object.values(ShareType).join(', ')}` },
         { status: 400 }
       );
     }
@@ -152,8 +152,8 @@ export async function PUT(
     const updatedLink = await linkService.updateLink(
       id,
       {
-        sharedWith: body.sharedWith,
-        scope: body.scope,
+        shareType: body.shareType,
+        recipients: body.recipients,
         expiresAt
       },
       user
