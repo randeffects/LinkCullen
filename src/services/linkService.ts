@@ -15,7 +15,9 @@
  */
 
 import { createHash } from 'crypto';
+import crypto from 'crypto';
 import { PrismaClient, TrackedLink, User, Role, ShareType, Permission } from '@prisma/client';
+import { Policy } from '@prisma/client';
 import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
@@ -64,6 +66,30 @@ export class LinkService {
    * Create a new shared link
    */
   async createLink(params: CreateLinkParams): Promise<TrackedLink> {
+    // Enforce policy on expiration and public sharing
+    const policy = await this.prisma.policy.findFirst();
+    const now = new Date();
+    let expires = params.expiresAt;
+    if (params.shareType === ShareType.ANYONE) {
+      if (!policy?.allowPublicSharing) throw new Error('Public sharing not allowed');
+      const maxDays = policy?.maxDurationExternal ?? 30;
+      const maxDate = new Date(now);
+      maxDate.setDate(maxDate.getDate() + maxDays);
+      if (expires) {
+        if (expires > maxDate) throw new Error('Expiration date exceeds allowed external limit');
+      } else {
+        expires = maxDate;
+      }
+    } else {
+      const maxDays = policy?.maxDurationInternal ?? 365;
+      const maxDate = new Date(now);
+      maxDate.setDate(maxDate.getDate() + maxDays);
+      if (expires) {
+        if (expires > maxDate) throw new Error('Expiration date exceeds allowed internal limit');
+      } else {
+        expires = maxDate;
+      }
+    }
     try {
       const fileId = this._calculateSHA256(params.filePath);
       // Generate a unique link URL
@@ -77,7 +103,7 @@ export class LinkService {
           filePath: params.filePath,
           shareType: params.shareType,
           linkUrl,
-          expiresAt: params.expiresAt,
+          expiresAt: expires,
           owner: {
             connect: {
               id: params.ownerId
@@ -177,9 +203,23 @@ export class LinkService {
    */
   async updateLink(id: string, params: UpdateLinkParams, user: User): Promise<TrackedLink | null> {
     try {
-      // First check if the link exists and if the user has permission
-      const existingLink = await this.getLinkById(id, user);
-      
+      // Enforce policy on expiration updates and public sharing
+      const policy = await this.prisma.policy.findFirst();
+      if (params.shareType === ShareType.ANYONE && !policy?.allowPublicSharing) {
+        throw new Error('Public sharing not allowed');
+      }
+      if (params.expiresAt) {
+        const now = new Date();
+        const maxDays = params.shareType === ShareType.ANYONE
+          ? policy?.maxDurationExternal ?? 30
+          : policy?.maxDurationInternal ?? 365;
+        const maxDate = new Date(now);
+        maxDate.setDate(maxDate.getDate() + maxDays);
+        if (params.expiresAt > maxDate) throw new Error('Expiration date exceeds allowed limit');
+      }
+       // First check if the link exists and if the user has permission
+       const existingLink = await this.getLinkById(id, user);
+
       if (!existingLink) {
         return null;
       }
@@ -310,3 +350,4 @@ export const linkService = new LinkService();
 
 // Export the class for testing or custom instances
 export default LinkService;
+

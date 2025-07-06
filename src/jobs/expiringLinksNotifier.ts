@@ -100,6 +100,13 @@ export class ExpiringLinksNotifier {
   }
 
   /**
+   * Manually trigger the notification job immediately
+   */
+  async runNow(): Promise<void> {
+    await this.checkAndNotify();
+  }
+
+  /**
    * Check for expiring links and send notifications
    */
   async checkAndNotify(): Promise<void> {
@@ -118,17 +125,14 @@ export class ExpiringLinksNotifier {
       
       // Group links by owner for consolidated emails
       const linksByOwner = expiringLinks.reduce((acc, link) => {
-        const ownerId = link.ownerId;
-        if (!acc[ownerId]) {
-          acc[ownerId] = {
-            owner: link.ownerId,
-            links: []
-          };
+        const ownerKey = link.owner.id;
+        if (!acc[ownerKey]) {
+          acc[ownerKey] = { owner: link.owner, links: [] };
         }
-        acc[ownerId].links.push(link);
+        acc[ownerKey].links.push(link);
         return acc;
-      }, {} as Record<string, { owner: any, links: any[] }>);
-      
+      }, {} as Record<string, { owner: { id: string; email: string }, links: typeof expiringLinks }>);
+
       // Send notifications to each owner
       for (const ownerId in linksByOwner) {
         const { owner, links } = linksByOwner[ownerId];
@@ -167,10 +171,11 @@ export class ExpiringLinksNotifier {
       // Add each link to the table
       links.forEach(link => {
         const expirationDate = link.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : 'N/A';
+        const sharedWith = link.recipients.map(r => r.recipient).join(', ');
         htmlContent += `
           <tr>
             <td>${link.fileName}</td>
-            <td>${link.sharedWith}</td>
+            <td>${sharedWith}</td>
             <td>${expirationDate}</td>
             <td><a href="${process.env.NEXT_PUBLIC_BASE_URL}/links/${link.id}">Manage Link</a></td>
           </tr>
@@ -200,18 +205,9 @@ export class ExpiringLinksNotifier {
     } catch (error) {
       logger.error('Failed to send expiration notification email', error as Error, {
         userId: owner.id,
-        email: owner.email
+        linkCount: links.length
       });
-      throw error;
     }
-  }
-
-  /**
-   * Run the job immediately (for testing or manual triggering)
-   */
-  async runNow(): Promise<void> {
-    logger.info('Manually triggering expiring links notification job');
-    await this.checkAndNotify();
   }
 }
 
@@ -220,3 +216,4 @@ export const expiringLinksNotifier = new ExpiringLinksNotifier();
 
 // Export the class for testing or custom instances
 export default ExpiringLinksNotifier;
+
