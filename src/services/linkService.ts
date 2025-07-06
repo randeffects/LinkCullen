@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-import { createHash } from 'crypto';
-import crypto from 'crypto';
+import crypto, { createHash } from 'crypto';
 import { PrismaClient, TrackedLink, User, Role, ShareType, Permission } from '@prisma/client';
-import { Policy } from '@prisma/client';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
+import { Client } from '@microsoft/microsoft-graph-client';
+import { ClientSecretCredential } from '@azure/identity';
 
 interface CreateLinkParams {
   fileName: string;
@@ -224,19 +222,15 @@ export class LinkService {
         return null;
       }
       
-      // Update the link
-      const updatedLink = await this.prisma.trackedLink.update({
-        where: { id },
-        data: {
-          shareType: params.shareType,
-          expiresAt: params.expiresAt,
-          recipients: {
-            deleteMany: {},
-            create: params.recipients
-          }
-        }
-      });
-      
+      // Build update data conditionally
+      const updateData: Partial<TrackedLink> & { recipients?: any } = {};
+      if (params.shareType !== undefined) updateData.shareType = params.shareType;
+      if (params.expiresAt !== undefined) updateData.expiresAt = params.expiresAt;
+      if (params.recipients) {
+        updateData.recipients = { deleteMany: {}, create: params.recipients };
+      }
+      const updatedLink = await this.prisma.trackedLink.update({ where: { id }, data: updateData });
+
       // Log the update for audit purposes
       await logger.audit('link.update', user.id, {
         linkId: id,
@@ -320,18 +314,106 @@ export class LinkService {
   async synchronizeLinks(): Promise<void> {
     try {
       logger.info('Starting link synchronization');
-      // Placeholder: In a real implementation, you would:
-      // 1. Connect to the Microsoft Graph API
-      // 2. Get all shared links
-      // 3. For each link, check if it exists in the database
-      // 4. If it exists, update it
-      // 5. If it doesn't exist, create it
-      // 6. If a link in the database doesn't exist in the source, delete it
+
+      // 1. Fetch all shared links from Microsoft Graph
+      const remoteLinks = await this.fetchGraphLinks();
+      // 2. Load all local tracked links
+      const localLinks = await this.prisma.trackedLink.findMany();
+
+      const remoteUrls = new Set(remoteLinks.map(l => l.linkUrl));
+
+      // 3. Upsert each remote link
+      for (const rl of remoteLinks) {
+        const existing = localLinks.find(ll => ll.linkUrl === rl.linkUrl);
+        const data = {
+          fileId: rl.fileId,
+          fileName: rl.fileName,
+          filePath: rl.filePath,
+          shareType: rl.shareType,
+          linkUrl: rl.linkUrl,
+          expiresAt: rl.expiresAt,
+          owner: { connect: { id: rl.ownerId } },
+          recipients: { deleteMany: {}, create: rl.recipients }
+        };
+
+        if (existing) {
+          await this.prisma.trackedLink.update({
+            where: { id: existing.id },
+            data
+          });
+        } else {
+          await this.prisma.trackedLink.create({ data });
+        }
+      }
+
+      // 4. Delete local links no longer in remote
+      for (const ll of localLinks) {
+        if (!remoteUrls.has(ll.linkUrl)) {
+          await this.prisma.trackedLink.delete({ where: { id: ll.id } });
+        }
+      }
+
       logger.info('Link synchronization complete');
     } catch (error) {
       logger.error('Failed to synchronize links', error as Error);
       throw error;
     }
+  }
+
+  private async fetchGraphLinks(): Promise<Array<{
+    fileId: string;
+    fileName: string;
+    filePath: string;
+    linkUrl: string;
+    expiresAt: Date | null;
+    ownerId: string;
+    shareType: ShareType;
+    recipients: { recipient: string; permission: Permission }[];
+  }>> {
+    // authenticate with Azure AD
+    const credential = new ClientSecretCredential(
+        process.env.AZURE_TENANT_ID!,
+        process.env.AZURE_CLIENT_ID!,
+        process.env.AZURE_CLIENT_SECRET!
+    );
+    const graph = Client.initWithMiddleware({
+      authProvider: {
+        getAccessToken: async () => {
+          const token = await credential.getToken('https://graph.microsoft.com/.default');
+          return token?.token ?? '';
+        }
+      }
+    });
+
+    // fetch all shares in the org
+    const res: any = await graph
+        .api('/shares?scope=organization')
+        .version('v1.0')
+        .get();
+
+    return res.value.map((item: any) => {
+      const scope = item.link.scope === 'anonymous' ? ShareType.ANYONE : ShareType.SPECIFIC_PEOPLE;
+      const expiresAt = item.link.expirationDateTime ? new Date(item.link.expirationDateTime) : null;
+      const filePath = new URL(item.driveItem.webUrl).pathname;
+      const fileId = this._calculateSHA256(filePath);
+
+      // you may need to fetch permissions per share if required
+      const recipients = (item.permissions ?? []).map((p: any) => ({
+        recipient: p.grantedToIdentities?.[0]?.user?.id ?? '',
+        permission: p.roles.includes('write') ? Permission.EDIT : Permission.VIEW
+      }));
+
+      return {
+        fileId,
+        fileName: item.driveItem.name,
+        filePath,
+        linkUrl: item.link.webUrl,
+        expiresAt,
+        ownerId: item.createdBy?.user?.id,
+        shareType: scope,
+        recipients
+      };
+    });
   }
   
   /**
@@ -350,4 +432,3 @@ export const linkService = new LinkService();
 
 // Export the class for testing or custom instances
 export default LinkService;
-
