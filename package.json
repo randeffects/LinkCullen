@@ -9,7 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@1password/connect": "^1.4.1",
     "@azure/cosmos": "^4.4.1",
+    "@azure/identity": "^4.10.2",
+    "@azure/keyvault-secrets": "^4.10.0",
     "@azure/msal-browser": "^4.13.2",
     "@azure/msal-react": "^3.0.13",
     "@prisma/client": "^6.10.1",
