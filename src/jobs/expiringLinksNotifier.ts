@@ -125,18 +125,20 @@ export class ExpiringLinksNotifier {
       
       // Group links by owner for consolidated emails
       const linksByOwner = expiringLinks.reduce((acc, link) => {
-        const ownerKey = link.owner.id;
+        const ownerKey = link.ownerId;
         if (!acc[ownerKey]) {
-          acc[ownerKey] = { owner: link.owner, links: [] };
+          acc[ownerKey] = { ownerId: link.ownerId, links: [] };
         }
         acc[ownerKey].links.push(link);
         return acc;
-      }, {} as Record<string, { owner: { id: string; email: string }, links: typeof expiringLinks }>);
+      }, {} as Record<string, { ownerId: string, links: typeof expiringLinks }>);
 
       // Send notifications to each owner
       for (const ownerId in linksByOwner) {
-        const { owner, links } = linksByOwner[ownerId];
-        await this.sendExpirationNotification(owner, links);
+        const { ownerId: id, links } = linksByOwner[ownerId];
+        // You may need to fetch the owner's email here if not present on the link
+        // For now, pass ownerId and links
+        await this.sendExpirationNotification(id, links);
       }
       
       logger.info('Expiring links notification job completed successfully');
@@ -149,17 +151,35 @@ export class ExpiringLinksNotifier {
   /**
    * Send an email notification for expiring links
    */
-  private async sendExpirationNotification(owner: any, links: any[]): Promise<void> {
+  private async sendExpirationNotification(ownerId: string, links: any[]): Promise<void> {
     try {
+      // You may need to fetch the owner's email here if not present on the link
+      // For now, assuming email is available on the first link
+      const ownerEmail = links[0]?.recipients[0]?.recipient;
+
       // Create email content
       const subject = `CullenLinks: You have ${links.length} shared link(s) expiring soon`;
       
       // Build the HTML content
       let htmlContent = `
+        <style>
+          table.cullenlinks-table {
+            border-collapse: collapse;
+            width: 100%;
+          }
+          table.cullenlinks-table th, table.cullenlinks-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+          }
+          table.cullenlinks-table th {
+            background-color: #f2f2f2;
+            text-align: left;
+          }
+        </style>
         <h2>Shared Links Expiring Soon</h2>
-        <p>Hello ${owner.email},</p>
+        <p>Hello,</p>
         <p>The following shared links are about to expire:</p>
-        <table border="1" cellpadding="5" style="border-collapse: collapse;">
+        <table class="cullenlinks-table">
           <tr>
             <th>File Name</th>
             <th>Shared With</th>
@@ -171,7 +191,7 @@ export class ExpiringLinksNotifier {
       // Add each link to the table
       links.forEach(link => {
         const expirationDate = link.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : 'N/A';
-        const sharedWith = link.recipients.map(r => r.recipient).join(', ');
+        const sharedWith = link.recipients.map((r: any) => r.recipient).join(', ');
         htmlContent += `
           <tr>
             <td>${link.fileName}</td>
@@ -192,19 +212,19 @@ export class ExpiringLinksNotifier {
       // Send the email
       await this.transporter.sendMail({
         from: this.emailConfig.from,
-        to: owner.email,
+        to: ownerEmail,
         subject,
         html: htmlContent
       });
       
       logger.info('Sent expiration notification email', {
-        userId: owner.id,
-        email: owner.email,
+        userId: ownerId,
+        email: ownerEmail,
         linkCount: links.length
       });
     } catch (error) {
       logger.error('Failed to send expiration notification email', error as Error, {
-        userId: owner.id,
+        userId: ownerId,
         linkCount: links.length
       });
     }
@@ -216,4 +236,3 @@ export const expiringLinksNotifier = new ExpiringLinksNotifier();
 
 // Export the class for testing or custom instances
 export default ExpiringLinksNotifier;
-
