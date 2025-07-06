@@ -65,7 +65,7 @@ The primary users of this application are:
 *   **Input Validation:** All user input, especially on the API, must be rigorously validated to prevent common vulnerabilities like Cross-Site Scripting (XSS) and NoSQL injection.
 *   **Principle of Least Privilege:** The permissions for each role will be reviewed to ensure they have only the minimum necessary access to perform their functions.
 *   **Dependency Management:** The project will use Dependabot to regularly scan and update dependencies to patch security vulnerabilities.
-*   **Secrets Management:** All secrets (API keys, database credentials, etc.) will be stored securely in Azure Key Vault and not hardcoded in the application or committed to version control. (Note: The implementation of this feature is currently blocked by a Jest configuration issue.)
+*   **Secrets Management:** All secrets (API keys, database credentials, etc.) will be stored securely. The application will support retrieving secrets from environment variables, Azure Key Vault, or 1Password Connect. (Note: The implementation of this feature is currently blocked by a Jest configuration issue.)
 
 ### 5.2. Maintainability
 *   **Code Style and Linting:** The project will use a consistent code style enforced by ESLint.
