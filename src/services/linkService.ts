@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import crypto, { createHash } from 'crypto';
+import { createHash } from 'crypto';
 import { PrismaClient, TrackedLink, User, Role, ShareType, Permission } from '@prisma/client';
 import { logger } from '@/lib/logger';
 import { Client } from '@microsoft/microsoft-graph-client';
@@ -28,6 +28,7 @@ interface CreateLinkParams {
     recipient: string;
     permission: Permission;
   }[];
+  linkUrl: string;
   expiresAt?: Date;
   ownerId: string;
 }
@@ -61,7 +62,8 @@ export class LinkService {
     return createHash('sha256').update(filePath).digest('hex');
   }
   /**
-   * Create a new shared link
+   * Create a new tracked link object.
+   * This does not create a share link, but rather a tracking entry for a link that exists in SharePoint or OneDrive.
    */
   async createLink(params: CreateLinkParams): Promise<TrackedLink> {
     // Enforce policy on expiration and public sharing
@@ -90,8 +92,6 @@ export class LinkService {
     }
     try {
       const fileId = this._calculateSHA256(params.filePath);
-      // Generate a unique link URL
-      const linkUrl = this.generateLinkUrl(fileId);
       
       // Create the link in the database
       const link = await this.prisma.trackedLink.create({
@@ -100,7 +100,7 @@ export class LinkService {
           fileName: params.fileName,
           filePath: params.filePath,
           shareType: params.shareType,
-          linkUrl,
+          linkUrl: params.linkUrl,
           expiresAt: expires,
           owner: {
             connect: {
@@ -416,15 +416,7 @@ export class LinkService {
     });
   }
   
-  /**
-   * Generate a unique link URL
-   * In a real implementation, this would be more sophisticated
-   */
-  private generateLinkUrl(fileId: string): string {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://cullenlinks.com';
-    const uniqueId = crypto.randomUUID().substring(0, 8);
-    return `${baseUrl}/share/${uniqueId}`;
-  }
+  
 }
 
 // Export a singleton instance
